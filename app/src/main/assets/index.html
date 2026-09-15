@@ -1,0 +1,1222 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="theme-color" content="#fefcf7">
+<title>笔记本</title>
+<style>
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+:root {
+  --bg: #fefcf7;
+  --line: #d4ccb8;
+  --text: #222;
+  --text-2: #888;
+  --hover: #f0ebe0;
+  --border: #e8e2d4;
+}
+
+html, body {
+  height: 100%;
+  overflow: hidden;
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+.app {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  height: 100dvh;
+}
+
+/* ---------- 顶部工具栏 ---------- */
+.toolbar {
+  position: relative; /* 供 .date-nav 绝对居中 */
+  display: flex;
+  align-items: center;
+  padding: 8px 12px;
+  padding-top: max(8px, env(safe-area-inset-top));
+  border-bottom: 1px solid var(--border);
+  background: var(--bg);
+  flex-shrink: 0;
+  gap: 4px;
+}
+
+.btn {
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-2);
+  transition: background 0.15s, color 0.15s;
+  font-family: inherit;
+}
+
+.btn:active { background: var(--hover); }
+.btn.active { background: var(--hover); color: var(--text); }
+
+.menu-btn { width: 40px; height: 40px; font-size: 22px; margin-right: auto; }
+/* 保留顶部翻页箭头按钮 */
+.nav-btn { width: 36px; height: 36px; font-size: 24px; }
+
+/* ---------- 右侧图标组（麦克风在上，笔在下，竖排居中） ---------- */
+.side-icons {
+  position: fixed;
+  right: 16px;
+  top: calc(50% + 36px);
+  transform: translateY(-50%);
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  align-items: center;
+}
+
+/* 笔图标 & 语音图标共用样式 */
+.pen-btn {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(180, 170, 140, 0.10);
+  color: rgba(120, 110, 90, 0.30); /* 默认暗色半透明 */
+  font-size: 22px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s;
+  user-select: none;
+  -webkit-user-select: none;
+  font-family: inherit;
+  padding-bottom: 2px;
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+}
+
+/* 麦克风图标：与笔共用 pen-btn 圆形底风格，仅字号稍小以区分 */
+.mic-btn {
+  font-size: 20px;
+  padding-bottom: 4px;
+}
+
+/* 录音中：颜色轻微变深（不显眼，不整块变绿） */
+.pen-btn.mic-btn.active {
+  color: rgba(80, 70, 50, 0.75);
+  background: rgba(180, 170, 140, 0.22);
+}
+
+/* 书写模式：笔图标亮起 */
+.pen-btn.write-mode {
+  color: rgba(80, 70, 50, 0.85);
+  background: rgba(180, 170, 140, 0.22);
+}
+
+/* 语音识别提示条 */
+.mic-toast {
+  position: fixed;
+  left: 50%;
+  bottom: calc(env(safe-area-inset-bottom) + 20px);
+  transform: translateX(-50%) translateY(20px);
+  background: rgba(50, 45, 40, 0.92);
+  color: #fff;
+  font-size: 13px;
+  line-height: 1.4;
+  padding: 10px 16px;
+  border-radius: 10px;
+  max-width: 82%;
+  text-align: center;
+  z-index: 200;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s, transform 0.25s;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+.mic-toast.show {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+/* 实时识别的中间结果预览（灰字） */
+.page-content .interim {
+  color: #b0a894;
+}
+
+/* ---------- 日期导航 ---------- */
+.date-nav {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  pointer-events: none; /* 让空白处不拦截，按钮自身恢复可点 */
+}
+
+.date-nav .btn { pointer-events: auto; }
+
+.date-display {
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--text);
+  min-width: 108px;
+  text-align: center;
+  letter-spacing: 0.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- 页面（横线格子） ---------- */
+.page-wrap {
+  flex: 1;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 16px 22px;
+  position: relative;
+}
+
+/* 横线画在内容层而不是滚动容器上：滚动时横线与文字一起移动 */
+.page-content {
+  outline: none;
+  min-height: 100%;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  line-height: 32px;
+  font-size: 16px;
+  padding-bottom: max(150px, calc(env(safe-area-inset-bottom) + 130px));
+  background-image: repeating-linear-gradient(
+    to bottom,
+    transparent,
+    transparent 31px,
+    var(--line) 31px,
+    var(--line) 32px
+  );
+}
+
+.page-content:empty::before {
+  content: attr(data-placeholder);
+  color: #c4bca8;
+  pointer-events: none;
+}
+
+.page-content b,
+.page-content strong {
+  font-weight: 700;
+  color: #111;
+}
+
+/* ---------- 侧边栏（目录） ---------- */
+.sidebar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: 78%;
+  max-width: 320px;
+  background: var(--bg);
+  border-right: 1px solid var(--border);
+  transform: translateX(-100%);
+  transition: transform 0.22s ease;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+}
+
+.sidebar.open { transform: translateX(0); }
+
+.sidebar-header {
+  padding: 18px;
+  padding-top: max(18px, env(safe-area-inset-top));
+  border-bottom: 1px solid var(--border);
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text);
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+
+/* ---------- 导入 / 导出（侧边栏 header 右侧，与"目录"同行同字号） ---------- */
+.sidebar-header { gap: 8px; }
+.sidebar-title { display: flex; align-items: center; gap: 12px; flex: 1; min-width: 0; }
+.sidebar-title .imp-exp { display: inline-flex; align-items: center; gap: 10px; }
+.sidebar-title .imp-exp span {
+  font-size: 16px;          /* 与"目录"同字号 */
+  font-weight: 400;         /* 不加粗，弱于标题，更美观 */
+  color: var(--text-2);
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+  padding: 2px 2px;
+  transition: color 0.15s;
+}
+.sidebar-title .imp-exp span:active { color: var(--text); }
+.sidebar-title .imp-exp .sep { color: #d5cdb8; font-weight: 300; }
+.sidebar-close {
+  width: 32px;
+  height: 32px;
+  font-size: 22px;
+  color: var(--text-2);
+}
+
+.sidebar-list {
+  flex: 1;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* 三级目录：年 > 月 > 日
+   年/月使用相同的右内边距，使文字与展开箭头右边缘对齐 */
+.year-header {
+  padding: 16px 18px 6px 18px;
+  font-size: 16px; /* 年字号稍大 */
+  font-weight: 600;
+  color: var(--text);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.year-header .arrow {
+  color: #aaa;
+  font-size: 14px;
+  transition: transform 0.2s;
+  flex-shrink: 0;
+}
+
+.year-group.collapsed .arrow { transform: rotate(-90deg); }
+.year-group.collapsed .year-body { display: none; }
+
+/* 月份与年份左对齐（缩进一致）；当前日期所在月份高亮，颜色同年份 */
+.month-header {
+  padding: 10px 30px 4px 18px;
+  font-size: 14px; /* 月字号比年稍小 */
+  color: #888;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.month-header.current {
+  color: var(--text);
+}
+
+.month-header .arrow {
+  font-size: 14px;
+  color: #bbb;
+  transition: transform 0.2s;
+  flex-shrink: 0;
+  margin-left: 4px;
+}
+
+.month-group.collapsed .month-header .arrow { transform: rotate(-90deg); }
+.month-group.collapsed .month-body { display: none; }
+
+.sidebar-item {
+  padding: 12px 18px 12px 30px;
+  border-bottom: 1px solid #f0ebe0;
+  cursor: pointer;
+  font-size: 15px;
+  color: var(--text-2);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.sidebar-item:active { background: var(--hover); }
+.sidebar-item.current {
+  background: var(--hover);
+  color: var(--text);
+  font-weight: 500;
+}
+
+.sidebar-item .preview {
+  font-size: 12px;
+  color: #aaa;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 55%;
+  font-weight: normal;
+}
+
+.sidebar-empty {
+  padding: 40px 18px;
+  text-align: center;
+  color: #aaa;
+  font-size: 13px;
+}
+
+.mask {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.3);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.22s ease;
+  z-index: 99;
+}
+
+.mask.show { opacity: 1; pointer-events: auto; }
+
+/* ---------- 滚动条美化（可选，不影响功能） ---------- */
+.page-wrap::-webkit-scrollbar,
+.sidebar-list::-webkit-scrollbar { width: 0; display: none; }
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="toolbar">
+    <button class="btn menu-btn" id="menuBtn" title="目录">≡</button>
+    <div class="date-nav">
+      <button class="btn nav-btn" id="prevDay" title="上一天">‹</button>
+      <div class="date-display" id="dateDisplay">—</div>
+      <button class="btn nav-btn" id="nextDay" title="下一天">›</button>
+  </div>
+  </div>
+
+  <!-- 右侧图标组：麦克风在上，笔在下，竖排居中 -->
+  <div class="side-icons">
+    <button class="pen-btn mic-btn" id="micBtn" title="语音输入" aria-label="语音输入">🎤</button>
+    <button class="pen-btn" id="penToggle" title="书写模式">✎</button>
+  </div>
+  <div class="page-wrap">
+    <div class="page-content" id="page" contenteditable="true" data-placeholder="开始记录..." spellcheck="false"></div>
+  </div>
+</div>
+
+<div class="mask" id="mask"></div>
+<div class="mic-toast" id="micToast"></div>
+<aside class="sidebar" id="sidebar">
+  <div class="sidebar-header">
+    <div class="sidebar-title">
+      <span>目录</span>
+      <span class="imp-exp">
+        <span id="btnImport">导入</span>
+        <span class="sep">·</span>
+        <span id="btnExport">导出</span>
+      </span>
+    </div>
+    <button class="btn sidebar-close" id="closeSidebar">×</button>
+  </div>
+  <input type="file" id="importFile" accept="application/json,.json" style="display:none">
+  <div class="sidebar-list" id="sidebarList"></div>
+</aside>
+
+<script>
+const STORAGE_KEY = 'notebook-data-v1';
+
+let data = {};
+let currentDate = '';
+let saveTimer = null;
+let recognition = null;
+let recognizing = false;
+let writeMode = false; // false=阅读模式, true=书写模式
+
+/* ---------- 日期工具 ---------- */
+function todayStr(d) {
+  d = d || new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+function shiftDate(dateStr, delta) {
+  // 从相邻的一天开始，沿 delta 方向持续往前找，跳过所有无内容的空日期，
+  // 直到找到第一个有记录的日期；若整条方向上都无记录则停留在原地。
+  const start = new Date(dateStr + 'T00:00:00');
+  let step = 0;
+  const MAX = 400; // 安全上限，避免极端情况死循环
+  while (step < MAX) {
+    step++;
+    const d = new Date(start.getTime());
+    d.setDate(d.getDate() + delta * step);
+    const cur = todayStr(d);
+    if (data[cur] !== undefined) return cur; // 找到有内容的日期即跳转（过去、未来都允许）
+  }
+  return dateStr; // 该方向没有任何记录，停留在原地
+}
+
+/* ---------- 存储 ---------- */
+function load() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    const d = raw ? JSON.parse(raw) : {};
+    // 迁移：中间版本是 { date: [页1, 页2...] }，现在回到每天一整页（高度无限）
+    data = {};
+    Object.keys(d).forEach(k => {
+      const v = d[k];
+      data[k] = Array.isArray(v) ? v.join('') : v;
+    });
+  } catch (e) {
+    data = {};
+  }
+}
+
+function persist() {
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => {
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); } catch (e) {}
+    refreshSidebar();
+  }, 250);
+}
+
+/* 一页 HTML 的纯文本（判断是否为空） */
+function textOf(html) {
+  const t = document.createElement('div');
+  t.innerHTML = html || '';
+  return (t.textContent || '').trim();
+}
+
+function saveCurrent() {
+  const page = document.getElementById('page');
+  const html = page.innerHTML;
+  // 空内容不保留该日期条目
+  if (!textOf(html)) delete data[currentDate];
+  else data[currentDate] = html;
+  persist();
+}
+
+/* ---------- 辅助 ---------- */
+function getPreview(html) {
+  const tmp = document.createElement('div');
+  tmp.innerHTML = html || '';
+  const text = (tmp.textContent || '').trim().replace(/\s+/g, ' ');
+  return text.length > 24 ? text.slice(0, 24) + '…' : text;
+}
+
+function getAllDates() {
+  return Object.keys(data).sort().reverse();
+}
+
+/* ---------- 渲染 ---------- */
+function renderPage() {
+  document.getElementById('dateDisplay').textContent = currentDate;
+  const page = document.getElementById('page');
+  page.innerHTML = data[currentDate] || '';
+  // 翻页/跳转时不弹键盘：主动失焦并清除选区，等用户点页面才出光标
+  page.blur();
+  const sel = window.getSelection();
+  if (sel) sel.removeAllRanges();
+  // 切换日期后回到阅读模式
+  writeMode = false;
+  page.contentEditable = 'false';
+  const pen = document.getElementById('penToggle');
+  pen.classList.remove('write-mode');
+  pen.title = '点击进入书写模式';
+  // 切换日期后回到顶部
+  const wrap = document.querySelector('.page-wrap');
+  if (wrap) wrap.scrollTop = 0;
+}
+
+function moveCursorToEnd(el) {
+  const range = document.createRange();
+  range.selectNodeContents(el);
+  range.collapse(false);
+  const sel = window.getSelection();
+  sel.removeAllRanges();
+  sel.addRange(range);
+}
+
+const LINE_HEIGHT = 32; // 与 CSS line-height 保持一致（供未来坐标定位使用）
+
+/* 点击页面区域
+   - 阅读模式：点右边 -> 翻下一页；点左边 -> 翻上一页
+   - 书写模式：点有字的行 -> 光标移到点击处；点空白行 -> 退出书写模式 */
+function pageTap(x, y) {
+  const page = document.getElementById('page');
+  if (!writeMode) {
+    // 阅读模式：根据点击位置左右翻页
+    handleReadModeClick(x);
+    return;
+  }
+  // 书写模式：判断是否点在了有文字的位置
+  let range = null;
+  if (document.caretRangeFromPoint) {
+    range = document.caretRangeFromPoint(x, y);
+  } else if (document.caretPositionFromPoint) {
+    const pos = document.caretPositionFromPoint(x, y);
+    if (pos) {
+      range = document.createRange();
+      range.setStart(pos.offsetNode, pos.offset);
+      range.collapse(true);
+    }
+  }
+  if (range && page.contains(range.startContainer) && range.startContainer.nodeType === Node.TEXT_NODE) {
+    // 点到了有文字的位置：光标移到该处
+    const sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
+    page.focus();
+  } else {
+    // 点到了空白区域：退出书写模式（进入阅读模式）
+    toggleWriteMode();
+  }
+}
+
+function refreshSidebar() {
+  const list = document.getElementById('sidebarList');
+  const dates = getAllDates();
+  if (dates.length === 0) {
+    list.innerHTML = '<div class="sidebar-empty">还没有记录</div>';
+    return;
+  }
+
+  // 记住折叠状态（年、月）
+  const collapsedYears = new Set(
+    [...list.querySelectorAll('.year-group.collapsed')].map(g => g.dataset.year)
+  );
+  const collapsedMonths = new Set(
+    [...list.querySelectorAll('.month-group.collapsed')].map(g => g.dataset.ym)
+  );
+
+  // 按 年 > 月 > 日 分组
+  const byYear = {};
+  dates.forEach(d => {
+    const [y, m] = d.split('-');
+    if (!byYear[y]) byYear[y] = {};
+    if (!byYear[y][m]) byYear[y][m] = [];
+    byYear[y][m].push(d);
+  });
+
+  let html = '';
+  Object.keys(byYear).sort((a, b) => b - a).forEach(y => {
+    html += `<div class="year-group ${collapsedYears.has(y) ? 'collapsed' : ''}" data-year="${y}">
+      <div class="year-header"><span>${y} 年</span><span class="arrow">▾</span></div>
+      <div class="year-body">`;
+    Object.keys(byYear[y]).sort((a, b) => b - a).forEach(m => {
+      const ym = `${y}-${m}`;
+      const [curY, curM] = (currentDate || '').split('-');
+      const monthCurrent = (curY === y && curM === m) ? ' current' : '';
+      html += `<div class="month-group ${collapsedMonths.has(ym) ? 'collapsed' : ''}" data-ym="${ym}">
+        <div class="month-header${monthCurrent}"><span>${parseInt(m, 10)} 月</span><span class="arrow">▾</span></div>
+        <div class="month-body">`;
+      byYear[y][m].forEach(d => {
+        html += `<div class="sidebar-item ${d === currentDate ? 'current' : ''}" data-date="${d}">
+          <span class="d"></span>
+          <span class="preview"></span>
+        </div>`;
+      });
+      html += `</div></div>`;
+    });
+    html += `</div></div>`;
+  });
+  list.innerHTML = html;
+
+  // 填充日期和预览（textContent 避免转义麻烦）
+  list.querySelectorAll('.sidebar-item').forEach(el => {
+    const d = el.dataset.date;
+    el.querySelector('.d').textContent = parseInt(d.slice(8), 10) + ' 日';
+    const preview = getPreview(data[d]);
+    if (preview) el.querySelector('.preview').textContent = preview;
+    el.addEventListener('click', () => {
+      saveCurrent();
+      currentDate = d;
+      renderPage();
+      refreshSidebar();
+      closeSidebar();
+    });
+  });
+
+  // 年份、月份折叠/展开
+  list.querySelectorAll('.year-header, .month-header').forEach(h => {
+    h.addEventListener('click', (e) => {
+      e.stopPropagation();
+      h.parentElement.classList.toggle('collapsed');
+    });
+  });
+}
+
+/* ---------- 翻页 ---------- */
+// 上一天 / 下一天（顶部 ‹ ›、左右滑动、右下悬浮箭头）
+function shiftDay(delta) {
+  saveCurrent();
+  currentDate = shiftDate(currentDate, delta);
+  renderPage();
+  refreshSidebar();
+}
+
+/* ---------- 侧边栏 ---------- */
+function openSidebar() {
+  refreshSidebar();
+  document.getElementById('sidebar').classList.add('open');
+  document.getElementById('mask').classList.add('show');
+}
+function closeSidebar() {
+  document.getElementById('sidebar').classList.remove('open');
+  document.getElementById('mask').classList.remove('show');
+}
+
+/* ---------- 笔图标：书写/阅读模式切换 ---------- */
+function toggleWriteMode() {
+  writeMode = !writeMode;
+  const pen = document.getElementById('penToggle');
+  const page = document.getElementById('page');
+
+  if (writeMode) {
+    // 进入书写模式：笔图标亮起，允许编辑
+    pen.classList.add('write-mode');
+    pen.title = '点击退出书写模式';
+    page.contentEditable = 'true';
+    page.removeAttribute('data-readonly');
+
+    // 光标定位到最后一个字之后，并弹出键盘
+    focusAtEnd(page);
+  } else {
+    // 退出书写模式：笔图标变暗，进入阅读模式
+    pen.classList.remove('write-mode');
+    pen.title = '点击进入书写模式';
+    page.contentEditable = 'false';
+    // 失焦，收起键盘
+    page.blur();
+    const sel = window.getSelection();
+    if (sel) sel.removeAllRanges();
+    saveCurrent();
+  }
+}
+
+/* 将光标定位到最后一个字的右边，不换行。
+   仅当页面完全没有内容时，才定位到第一行行首。 */
+function focusAtEnd(el) {
+  el.focus();
+  requestAnimationFrame(() => {
+    const sel = window.getSelection();
+    const range = document.createRange();
+
+    // 统计页面里是否有可见文字
+    let hasText = false;
+    const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+    let node;
+    while ((node = walker.nextNode())) {
+      if ((node.textContent || '').trim()) { hasText = true; break; }
+    }
+
+    if (!hasText) {
+      // 空页：光标定位到第一行行首
+      range.selectNodeContents(el);
+      range.collapse(true);
+    } else {
+      // 有内容：找最后一个文本节点，光标放到它的末尾（最后一个字右边）
+      let lastText = null;
+      const w2 = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+      while ((node = w2.nextNode())) {
+        if ((node.textContent || '').trim()) lastText = node;
+      }
+      if (lastText) {
+        range.setStart(lastText, lastText.textContent.length);
+        range.collapse(true);
+      } else {
+        range.selectNodeContents(el);
+        range.collapse(true);
+      }
+    }
+
+    sel.removeAllRanges();
+    sel.addRange(range);
+    el.focus();
+  });
+}
+
+/* 阅读模式下点击页面左右区域翻页：右半屏下一页，左半屏上一页 */
+function handleReadModeClick(x) {
+  const screenWidth = window.innerWidth;
+  if (x > screenWidth / 2) {
+    shiftDay(1);   // 点右边 -> 下一页
+  } else if (x < screenWidth / 2) {
+    shiftDay(-1);  // 点左边 -> 上一页
+  }
+}
+/* ---------- 语音输入（Web Speech API）
+   交互：点一下麦克风开始录音识别，再点一下停止（和微信一致，不长按） */
+let micToastTimer = null;
+function micToast(msg, ms) {
+  const t = document.getElementById('micToast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(micToastTimer);
+  micToastTimer = setTimeout(() => t.classList.remove('show'), ms || 2600);
+}
+
+/* 浏览器是否提供语音识别能力 */
+function speechSupported() {
+  return !!(window.SpeechRecognition || window.webkitSpeechRecognition);
+}
+
+function setupRecognition() {
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) return null;
+  const r = new SR();
+  r.lang = 'zh-CN';
+  r.continuous = true;
+  r.interimResults = true;
+
+  let interimNode = null;
+
+  function ensureWriteMode() {
+    if (!writeMode) toggleWriteMode();
+    const page = document.getElementById('page');
+    if (page.contentEditable !== 'true') page.contentEditable = 'true';
+    page.focus();
+  }
+
+  r.onstart = () => {
+    recognizing = true;
+    updateMicBtn();
+  };
+
+  r.onresult = (e) => {
+    ensureWriteMode();
+    const page = document.getElementById('page');
+    let finalText = '', interimText = '';
+    for (let i = e.resultIndex; i < e.results.length; i++) {
+      const res = e.results[i];
+      if (res.isFinal) finalText += res[0].transcript;
+      else interimText += res[0].transcript;
+    }
+    if (finalText) appendText(finalText);
+    if (interimText) {
+      if (!interimNode || !page.contains(interimNode)) {
+        interimNode = document.createElement('span');
+        interimNode.className = 'interim';
+        insertNodeAtCursor(interimNode);
+      }
+      interimNode.textContent = interimText;
+      scrollCursorIntoView();
+    }
+  };
+
+  r.onerror = (e) => {
+    if (['not-allowed', 'service-not-allowed', 'network', 'aborted'].includes(e.error)) {
+      // 环境/权限问题：静默处理，不再弹"没联网"这类刺眼红字
+      console.warn('语音识别环境错误:', e.error);
+      return;
+    }
+    if (e.error !== 'no-speech') {
+      micToast('语音识别出错：' + e.error);
+    }
+    recognizing = false;
+    updateMicBtn();
+  };
+
+  r.onend = () => {
+    // stop() 触发的结束：recognizing 已置 false，正常复位
+    if (!recognizing) {
+      updateMicBtn();
+      if (interimNode && interimNode.parentNode) interimNode.parentNode.removeChild(interimNode);
+      interimNode = null;
+      saveCurrent();
+      return;
+    }
+    // 服务端中途断开：自动重启保持连续
+    try { recognition.start(); } catch (err) {
+      recognizing = false;
+      updateMicBtn();
+      saveCurrent();
+    }
+  };
+
+  return r;
+}
+
+/* 在光标处插入一个节点 */
+function insertNodeAtCursor(node) {
+  const page = document.getElementById('page');
+  const sel = window.getSelection();
+  let range;
+  if (sel.rangeCount > 0 && page.contains(sel.anchorNode)) {
+    range = sel.getRangeAt(0);
+    range.deleteContents();
+    range.insertNode(node);
+  } else {
+    page.appendChild(node);
+  }
+  const newRange = document.createRange();
+  newRange.setStartAfter(node);
+  newRange.setEndAfter(node);
+  sel.removeAllRanges();
+  sel.addRange(newRange);
+}
+
+/* 在光标处追加纯文本（最终结果） */
+function appendText(text) {
+  const page = document.getElementById('page');
+  const oldInterim = page.querySelector('.interim');
+  if (oldInterim) oldInterim.parentNode.removeChild(oldInterim);
+  const node = document.createTextNode(text);
+  insertNodeAtCursor(node);
+  scrollCursorIntoView();
+  saveCurrent();
+}
+
+function scrollCursorIntoView() {
+  const wrap = document.querySelector('.page-wrap');
+  if (!wrap) return;
+  const sel = window.getSelection();
+  if (!sel.rangeCount) return;
+  const rect = sel.getRangeAt(0).getBoundingClientRect();
+  const wrapRect = wrap.getBoundingClientRect();
+  const top = rect.top - wrapRect.top + wrap.scrollTop;
+  if (rect.bottom > wrapRect.bottom - 20 || rect.top < wrapRect.top + 20) {
+    wrap.scrollTop = top - wrap.clientHeight / 2;
+  }
+}
+
+/* 点一下：开始录音识别；再点一下：停止（与微信一致，不长按） */
+function toggleMic() {
+  if (recognizing) {
+    // 再次点击 -> 停止识别：立即清零，让 onend 走复位分支
+    recognizing = false;
+    try { recognition.stop(); } catch (e) {}
+    updateMicBtn();
+    return;
+  }
+
+  if (!speechSupported()) {
+    micToast('当前浏览器不支持语音输入，请用键盘书写');
+    return;
+  }
+
+  if (!writeMode) toggleWriteMode();
+  try {
+    recognition.start();
+    recognizing = true;
+    updateMicBtn();
+  } catch (e) {
+    recognizing = false;
+    updateMicBtn();
+    micToast('无法启动语音，请重试');
+    console.warn(e);
+  }
+}
+
+function updateMicBtn() {
+  const btn = document.getElementById('micBtn');
+  btn.classList.toggle('active', recognizing);
+  btn.title = recognizing ? '停止录音' : '语音输入';
+}
+
+/* ---------- 事件绑定 ---------- */
+function bindEvents() {
+  const page = document.getElementById('page');
+
+  page.addEventListener('blur', saveCurrent);
+  page.addEventListener('input', saveCurrent);
+
+  // 回车改为插入换行，避免 contenteditable 默认生成 <div>
+  page.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      document.execCommand('insertLineBreak', false);
+    }
+  });
+
+  document.getElementById('prevDay').addEventListener('click', () => shiftDay(-1));
+  document.getElementById('nextDay').addEventListener('click', () => shiftDay(1));
+  // 笔图标：切换书写/阅读模式（点击后光标到末尾并弹键盘）
+  document.getElementById('penToggle').addEventListener('click', toggleWriteMode);
+  document.getElementById('menuBtn').addEventListener('click', openSidebar);
+  document.getElementById('closeSidebar').addEventListener('click', closeSidebar);
+  document.getElementById('mask').addEventListener('click', closeSidebar);
+
+  // 点击页面区域
+  const wrap = document.querySelector('.page-wrap');
+  // 桌面端 mousedown：阻止 contenteditable 在空白处的默认插入行为
+  // 真正的点击逻辑交给 click -> pageTap（统一处理翻页/定位/空白退出）
+  wrap.addEventListener('mousedown', (e) => {
+    if (!writeMode) e.preventDefault();
+  });
+  wrap.addEventListener('click', (e) => {
+    pageTap(e.clientX, e.clientY);
+  });
+  // 移动端：touch 用 mousedown 的相同逻辑，touchend 阻止合成 click 默认行为
+  let tapMoved = false;
+  wrap.addEventListener('touchstart', (e) => {
+    tapMoved = false;
+  }, { passive: true });
+  wrap.addEventListener('touchmove', () => { tapMoved = true; }, { passive: true });
+  wrap.addEventListener('touchend', (e) => {
+    if (!tapMoved) e.preventDefault(); // 阻止合成 click，避免重复处理
+  });
+
+  // 麦克风（自动识别 / 手动兜底）
+  recognition = setupRecognition();
+  document.getElementById('micBtn').addEventListener('click', toggleMic);
+
+  // 左右滑动翻页
+  let touchStartX = 0, touchStartY = 0, touchStartT = 0, touchMoved = false;
+  page.addEventListener('touchstart', (e) => {
+    touchStartX = e.touches[0].clientX;
+    touchStartY = e.touches[0].clientY;
+    touchStartT = Date.now();
+    touchMoved = false;
+  }, { passive: true });
+
+  page.addEventListener('touchmove', () => { touchMoved = true; }, { passive: true });
+
+  page.addEventListener('touchend', (e) => {
+    const dx = e.changedTouches[0].clientX - touchStartX;
+    const dy = e.changedTouches[0].clientY - touchStartY;
+    const dt = Date.now() - touchStartT;
+    // 水平滑动 + 距离足够 + 时间合理 -> 翻页
+    if (Math.abs(dx) > 100 && Math.abs(dx) > Math.abs(dy) * 2 && dt < 800) {
+      e.preventDefault(); // 阻止合成 click，避免重复翻页
+      shiftDay(dx > 0 ? -1 : 1);
+      return;
+    }
+    // 非滑动的 tap 点击（移动端 preventDefault 阻止了合成 click，这里手动处理）
+    if (!touchMoved) {
+      pageTap(e.changedTouches[0].clientX, e.changedTouches[0].clientY);
+    }
+  }, { passive: false });
+}
+
+/* ---------- 启动 ---------- */
+load();
+currentDate = todayStr();
+bindEvents();
+renderPage();
+refreshSidebar();
+
+
+/* ==================================================================
+   导入 / 导出 + 语音输入（Android 原生桥接）—— 新增，其余不动
+   ================================================================== */
+(function () {
+  'use strict';
+
+  /* ---------- 导出：把全部数据序列化为 JSON ---------- */
+  function buildBackup() {
+    // 先确保当前页已落盘
+    saveCurrent();
+    var now = todayStr();
+    var payload = {
+      _type: 'notebook-backup',
+      _version: 1,
+      _exportedAt: new Date().toISOString(),
+      _currentDate: currentDate || now,
+      data: data || {}
+    };
+    return { name: 'notebook-backup-' + now + '.json', json: JSON.stringify(payload, null, 2) };
+  }
+
+  function downloadBlob(filename, text) {
+    var blob = new Blob([text], { type: 'application/json' });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(function () { URL.revokeObjectURL(url); }, 1500);
+  }
+
+  function doExport() {
+    var b = buildBackup();
+    // 优先走安卓原生保存（可进 Download / 系统分享）
+    if (window.AndroidBridge && typeof window.AndroidBridge.saveBackup === 'function') {
+      window.AndroidBridge.saveBackup(b.name, b.json);
+    } else {
+      downloadBlob(b.name, b.json);
+    }
+  }
+
+  /* ---------- 导入：解析 JSON，合并或覆盖 ---------- */
+  function applyImport(text, mode) {
+    var parsed;
+    try { parsed = JSON.parse(text); }
+    catch (e) { alert('备份文件格式错误，无法解析：' + e.message); return; }
+
+    var incoming = parsed && parsed.data ? parsed.data : (parsed && typeof parsed === 'object' ? parsed : null);
+    if (!incoming || typeof incoming !== 'object') { alert('备份文件里没有找到笔记数据。'); return; }
+
+    // 归一化（兼容早期数组格式）
+    var norm = {};
+    Object.keys(incoming).forEach(function (k) {
+      var v = incoming[k];
+      norm[k] = Array.isArray(v) ? v.join('') : v;
+    });
+
+    if (mode === 'replace') {
+      data = norm;
+    } else {
+      // 合并：导入数据优先（同日期以备份为准）
+      data = Object.assign({}, data || {}, norm);
+    }
+
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); } catch (e) {}
+    refreshSidebar();
+
+    var dateToShow = (parsed && parsed._currentDate) || Object.keys(norm).sort().reverse()[0] || currentDate;
+    currentDate = dateToShow;
+    renderPage();
+    alert('导入成功！共 ' + Object.keys(norm).length + ' 天的笔记。');
+  }
+
+  function doImportFile(file) {
+    var reader = new FileReader();
+    reader.onload = function (e) { applyImport(e.target.result, 'merge'); };
+    reader.readAsText(file);
+  }
+
+  function pickImport() {
+    var input = document.getElementById('importFile');
+    input.value = '';
+    input.onchange = function (e) {
+      var file = e.target.files && e.target.files[0];
+      if (file) doImportFile(file);
+    };
+    input.click();
+  }
+
+  /* ---------- 绑定导入/导出按钮 ---------- */
+  function bindImportExport() {
+    var exp = document.getElementById('btnExport');
+    var imp = document.getElementById('btnImport');
+    if (exp) exp.addEventListener('click', function () {
+      // 有原生桥接就用桥接弹分享；否则直接浏览器下载
+      doExport();
+    });
+    if (imp) imp.addEventListener('click', function () {
+      // 若已有数据，询问合并还是覆盖
+      var hasData = Object.keys(data || {}).length > 0;
+      if (hasData) {
+        var choice = confirm(
+          '确定要导入备份吗？\n[确定] = 合并（同日期以备份为准）\n[取消] = 先导出当前数据再导入'
+        );
+        if (!choice) {
+          // 用户取消合并 -> 先导出当前再让用户重新导入
+          doExport();
+          setTimeout(pickImport, 300);
+          return;
+        }
+      }
+      // 安卓 APK：走原生 SAF 文件选择器（可靠）；浏览器环境回退到 input file
+      if (window.AndroidBridge && typeof window.AndroidBridge.pickImport === 'function') {
+        window.AndroidBridge.pickImport();
+      } else {
+        pickImport();
+      }
+    });
+  }
+
+  /* ---------- 语音输入：原生 Android 桥接 + Web Speech 回退 ---------- */
+  function startVoice() {
+    // 1) 安卓原生 SpeechRecognizer（APK 内，最灵敏）
+    if (window.AndroidBridge && typeof window.AndroidBridge.startVoice === 'function') {
+      try { window.AndroidBridge.startVoice(); return true; } catch (e) {}
+    }
+    // 2) 浏览器 Web Speech API（GitHub Pages / Chrome 兜底）
+    if (typeof setupRecognition === 'function') {
+      try { setupRecognition(); return true; } catch (e) {}
+    }
+    micToast && micToast('当前环境不支持语音输入');
+    return false;
+  }
+
+  // 供 Java 回调：把识别到的文本插入到光标处（与原有 appendText 一致）
+  window.onVoiceResult = function (text) {
+    if (!text) return;
+    if (typeof appendText === 'function') { appendText(text); return; }
+    // 极简兜底
+    var page = document.getElementById('page');
+    if (page) page.innerHTML += text;
+  };
+  window.onVoiceError = function (msg) { micToast && micToast(msg || '语音识别失败'); };
+
+  // 实时中间结果：以灰色预览显示在光标处（与原有 .interim 一致）
+  var _partialNode = null;
+  window.onVoicePartial = function (text) {
+    var page = document.getElementById('page');
+    if (!page) return;
+    if (!writeMode) return; // 仅在书写模式下显示实时结果
+    if (!text) {
+      if (_partialNode && _partialNode.parentNode) _partialNode.parentNode.removeChild(_partialNode);
+      _partialNode = null;
+      return;
+    }
+    if (!_partialNode || !page.contains(_partialNode)) {
+      _partialNode = document.createElement('span');
+      _partialNode.className = 'interim';
+      insertNodeAtCursor(_partialNode);
+    }
+    _partialNode.textContent = text;
+    scrollCursorIntoView();
+  };
+
+  // 覆盖原有麦克风按钮：改用桥接流程
+  function bindVoiceBridge() {
+    var btn = document.getElementById('micBtn');
+    if (!btn) return;
+    btn.removeEventListener('click', btn._voiceHandler);
+    var handler = function () {
+      if (recognizing) {
+        // 停止：通知原生端
+        if (window.AndroidBridge && typeof window.AndroidBridge.stopVoice === 'function') {
+          try { window.AndroidBridge.stopVoice(); } catch (e) {}
+        }
+        recognizing = false;
+        updateMicBtn && updateMicBtn();
+        return;
+      }
+      startVoice();
+    };
+    btn._voiceHandler = handler;
+    btn.addEventListener('click', handler);
+  }
+
+  // 暴露给 Java 调用的全局接口
+  window.Notebook = {
+    exportData: function () { var b = buildBackup(); return b.json; },
+    importData: function (jsonText) { applyImport(jsonText, 'merge'); },
+    receiveImport: function (jsonText) { applyImport(jsonText, 'merge'); },
+    startVoice: startVoice
+  };
+
+  // 挂载到启动流程（兼容 bindEvents 已执行的情况）
+  var _origBind = null;
+  if (typeof bindEvents === 'function') {
+    _origBind = bindEvents;
+    bindEvents = function () {
+      _origBind.apply(null, arguments);
+      bindImportExport();
+      bindVoiceBridge();
+    };
+  }
+  // 若 bindEvents 已跑过，立即补绑
+  bindImportExport();
+  bindVoiceBridge();
+
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,9 @@
+<resources>
+    <style name="Theme.Notebook" parent="Theme.AppCompat.NoActionBar">
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:windowFullscreen">true</item>
+        <item name="android:statusBarColor">#fefcf7</item>
+        <item name="android:navigationBarColor">#fefcf7</item>
+        <item name="android:windowBackground">@android:color/transparent</item>
+    </style>
+</resources>
